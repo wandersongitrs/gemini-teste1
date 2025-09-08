@@ -1,0 +1,12 @@
+# Configurações do Bot Telegram
+TELEGRAM_TOKEN=seu_token_aqui
+
+# Chaves de API
+GEMINI_API_KEY=sua_chave_gemini_aqui
+HUGGINGFACE_API_KEY=sua_chave_huggingface_aqui
+TAVILY_API_KEY=sua_chave_tavily_aqui
+REMOVEBG_API_KEY=sua_chave_removebg_aqui
+FISH_AUDIO_API_KEY=sua_chave_fish_audio_aqui
+
+# Configurações do Modelo
+GEMINI_MODEL_NAME=gemini-1.5-flash

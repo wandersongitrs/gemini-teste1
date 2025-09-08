@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+venv/
+.git/
+.gitignore
+bot_data.db
+.env
