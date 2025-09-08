@@ -1,7 +1,7 @@
 import sqlite3
 import logging
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Tuple, Dict, Optional, Any
 
 DB_FILE = "bot_data.db"
@@ -92,6 +92,19 @@ def initialize_db():
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_conversation_states_user_id ON conversation_states(user_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_personalities_user_id ON user_personalities(user_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_settings_user_id ON user_settings(user_id)")
+
+            # Tabela de cache simples para APIs
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS api_cache (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    ttl_seconds INTEGER NOT NULL
+                )
+                """
+            )
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_api_cache_created_at ON api_cache(created_at)")
             
             conn.commit()
             logger.info("Banco de dados avançado inicializado com sucesso.")
@@ -456,4 +469,51 @@ def get_user_settings(user_id: str) -> Optional[Dict[str, Any]]:
             
     except sqlite3.Error as e:
         logger.error(f"Erro ao obter configurações: {e}")
+        return None
+
+# -------------------------
+# Cache utilitário (API)
+# -------------------------
+
+def cache_set(key: str, value: Dict[str, Any], ttl_seconds: int = 3600) -> None:
+    """Salva um valor JSON no cache com TTL.
+    key deve ser um hash estável da consulta/parâmetros.
+    """
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "REPLACE INTO api_cache (key, value, ttl_seconds, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+                (key, json.dumps(value, ensure_ascii=False), ttl_seconds),
+            )
+            conn.commit()
+    except sqlite3.Error as e:
+        logger.error(f"Erro ao salvar cache: {e}")
+
+
+def cache_get(key: str) -> Optional[Dict[str, Any]]:
+    """Obtém valor do cache se não expirado."""
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT value, created_at, ttl_seconds FROM api_cache WHERE key = ?",
+                (key,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            value_json, created_at_str, ttl_sec = row
+            created = datetime.fromisoformat(created_at_str)
+            if datetime.now() - created > timedelta(seconds=int(ttl_sec)):
+                # Expirado: remover e retornar None
+                try:
+                    cursor.execute("DELETE FROM api_cache WHERE key = ?", (key,))
+                    conn.commit()
+                except Exception:
+                    pass
+                return None
+            return json.loads(value_json)
+    except sqlite3.Error as e:
+        logger.error(f"Erro ao obter cache: {e}")
         return None

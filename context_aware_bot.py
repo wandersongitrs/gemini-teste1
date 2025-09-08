@@ -43,6 +43,7 @@ from advanced_context_system import (
     AdvancedContextSystem, ConversationState, get_advanced_context_system
 )
 from interactive_keyboards import get_keyboard_manager
+from tasks.heavy_tasks import clone_voice_task, research_report_task, generate_image_task
 
 logger = logging.getLogger('gemini_bot')
 
@@ -258,11 +259,8 @@ Bem-vindo ao **Bot com Contexto Avançado**!
         
         await update.message.reply_text(
             "🎤 **Modo de Clonagem de Voz Ativado**\n\n"
-            "📝 **Instruções:**\n"
-            "• Envie um arquivo de áudio de 5-10 segundos\n"
-            "• O áudio deve conter uma voz clara\n"
-            "• Aguarde o processamento...\n\n"
-            "💡 **Para sair:** Use `/sair_modo`",
+            "📌 Envie um arquivo de áudio de 5-10 segundos com voz clara.\n"
+            "Quando o áudio chegar, vamos enfileirar a clonagem e você poderá continuar usando o bot.",
             parse_mode='Markdown'
         )
         
@@ -422,25 +420,29 @@ Bem-vindo ao **Bot com Contexto Avançado**!
         
         try:
             if current_state == ConversationState.AGUARDANDO_AUDIO_CLONE:
-                # Modo de clonagem de voz
-                await update.message.reply_text(
-                    "🎤 **Processando áudio para clonagem...**\n\n"
-                    "⏳ Analisando características da voz...\n"
-                    "🔄 Preparando modelo de clonagem...\n\n"
-                    "✅ **Clonagem concluída!**\n"
-                    "Agora você pode usar `/falar` para gerar áudio com esta voz.",
-                    parse_mode='Markdown'
-                )
+                # Enfileirar a clonagem de voz no Celery (não bloquear o bot)
+                file_id = None
+                if update.message.voice:
+                    file_id = update.message.voice.file_id
+                elif update.message.audio:
+                    file_id = update.message.audio.file_id
                 
-                # Salvar contexto de áudio
+                if not file_id:
+                    await update.message.reply_text("❌ Não encontrei o arquivo de áudio. Envie novamente como áudio/voz.")
+                    return
+                
+                await update.message.reply_text("⏳ Áudio recebido. Iniciando processamento em segundo plano…")
+                try:
+                    clone_voice_task.delay(int(update.effective_chat.id), file_id, {})
+                except Exception:
+                    await update.message.reply_text("⚠️ A fila de tarefas está indisponível no momento. Tente novamente mais tarde.")
+                
+                # Registrar interação e resetar estado
                 session_id = f"session_{int(datetime.now().timestamp())}"
                 conversation_id = self.conversation_manager.get_or_create_conversation(user_id, session_id)
-                
                 self.context_system.handle_multimodal_interaction(
-                    user_id, "audio", "Áudio processado para clonagem de voz", conversation_id
+                    user_id, "audio", "Áudio enviado para clonagem (em fila)", conversation_id
                 )
-                
-                # Voltar ao modo normal
                 self.context_system.set_conversation_state(user_id, ConversationState.CHAT_GERAL)
                 
             else:
