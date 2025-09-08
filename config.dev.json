@@ -1,0 +1,14 @@
+{
+  "app_name": "gemini-bot-dev",
+  "env": "development",
+  "logging": {
+    "level": "INFO",
+    "log_file": "bot.log"
+  },
+  "telegram": {
+    "admin_user_ids": []
+  },
+  "cache": {
+    "ttl_seconds": 3600
+  }
+}

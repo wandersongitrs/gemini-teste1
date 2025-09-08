@@ -43,9 +43,10 @@ from advanced_context_system import (
     AdvancedContextSystem, ConversationState, get_advanced_context_system
 )
 from interactive_keyboards import get_keyboard_manager
+from logging_setup import setup_logging
 from tasks.heavy_tasks import clone_voice_task, research_report_task, generate_image_task
 
-logger = logging.getLogger('gemini_bot')
+logger = setup_logging('gemini_bot')
 
 class ContextAwareTelegramBot:
     """Bot Telegram com sistema de contexto avançado"""
@@ -102,10 +103,11 @@ class ContextAwareTelegramBot:
         # Obter personalidade atual
         personality = self.context_system.get_user_personality(user_id)
         
+        local_time = datetime.now().strftime('%H:%M')
         welcome_text = f"""
 🤖 **Olá, {username}!**
 
-Bem-vindo ao **Bot com Contexto Avançado**!
+Bom dia! São {local_time} no seu horário local. Bem-vindo ao **Bot com Contexto Avançado**!
 
 ✨ **Recursos disponíveis:**
 • 🧠 Memória contextual multimodal

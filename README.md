@@ -273,3 +273,92 @@ Este projeto está sob a licença MIT. Veja o arquivo LICENSE para mais detalhes
 ## 📞 Suporte
 
 Se você encontrar algum problema ou tiver dúvidas, abra uma issue no GitHub.
+
+## 🏗️ Arquitetura (Visão Geral)
+
+```
+[Usuário]
+   │ Telegram
+   ▼
+[Bot (python-telegram-bot)]  ── usa →  [AdvancedContextSystem]
+   │                                 │
+   │                                 ├─ Contexto Multimodal (SQLite)
+   │                                 └─ Estados/Personalidade (SQLite)
+   │
+   ├─► Geração/Análise (Gemini)
+   ├─► Pesquisa (Tavily)  ←→  [Cache API (SQLite)]
+   └─► Tarefas Pesadas → [Celery Worker] ← Broker [Redis]
+                                       │
+                                       └─ Notifica resultado → Telegram
+```
+
+## ⚙️ Ambientes e Configuração (APP_ENV)
+
+- Defina `APP_ENV=dev` (padrão) ou `APP_ENV=prod` no ambiente.
+- Arquivos de configuração:
+  - `config.dev.json`: desenvolvimento
+  - `config.prod.json`: produção
+- Carregamento automático via `config_loader.py`.
+
+Variáveis úteis no `.env` (exemplos):
+
+```
+TELEGRAM_TOKEN=seu_token
+GEMINI_API_KEY=sua_chave
+ADMIN_USER_IDS=123456789
+REDIS_URL=redis://localhost:6379/0
+BOT_LOG_FILE=bot.log
+APP_ENV=dev
+```
+
+## 🚦 Execução com Filas (Celery + Redis)
+
+1) Inicie o Redis (local ou serviço).
+2) Inicie o worker Celery:
+
+```bash
+celery -A tasks.celery_app.celery_app worker -l info
+```
+
+3) Execute o bot normalmente:
+
+```bash
+python context_aware_bot.py
+```
+
+O comando `/clonarvoz` irá enfileirar a clonagem de voz (não bloqueia o bot). Você receberá as mensagens de progresso e conclusão automaticamente.
+
+## 🧾 Logging e Alertas
+
+- Logging configurado em `logging_setup.py` (console + arquivo rotativo).
+- Em nível `ERROR`, o bot envia um alerta para os `ADMIN_USER_IDS` via Telegram (se configurados).
+- Arquivo padrão: `BOT_LOG_FILE=bot.log`.
+
+## 🧪 Testes e Analytics
+
+- Testes (pytest):
+  - `tests/test_cache.py` – testa cache API em SQLite
+- Analytics:
+  - `analytics.py` – gera relatório rápido: papéis, top comandos, uso por hora
+
+Execução:
+
+```bash
+pytest -q
+python analytics.py
+```
+
+## 💡 Exemplos de Uso
+
+- Personalidade:
+  - `/personalidade cientista` – respostas mais analíticas
+- Contexto:
+  - Envie uma imagem → peça: “Crie uma história sobre isso”
+- Filas:
+  - `/clonarvoz` → envie um áudio de 5–10s → processamento em segundo plano
+
+## 🛟 Troubleshooting Rápido
+
+- “Fila indisponível”: confirme `REDIS_URL` e o worker Celery ativo.
+- “Sem respostas do bot”: confirme `TELEGRAM_TOKEN` e conectividade.
+- “Cache não retorna”: verifique TTL e chave de cache (parâmetros normalizados).
